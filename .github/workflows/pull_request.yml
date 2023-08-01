@@ -1,0 +1,68 @@
+name: Lint and test pull request
+on:
+  pull_request:
+    branches: [develop]
+
+env:
+  cache-name: npm-cache
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        with:
+          cache: yarn
+          node-version: '18.16.0'
+
+      - name: Caching node modules
+        id: cache-npm
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/yarn.lock') }}
+
+      - if: ${{ steps.cache-npm.outputs.cache-hit != 'true' }}
+        name: List node modules state
+        run: npm list
+        continue-on-error: true
+
+      - name: Install npm packages
+        run: yarn install --frozen-lockfile
+
+      - name: Linting
+        run: |
+          yarn lint:ts
+          yarn lint:prettier
+
+  test:
+    name: Unit testing
+    runs-on: ubuntu-22.04
+    needs: lint
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18.16.0'
+          cache: yarn
+
+      - name: Caching node modules
+        id: cache-npm
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/yarn.lock') }}
+
+      - if: ${{ steps.cache-npm.outputs.cache-hit != 'true' }}
+        name: List node modules state
+        run: npm list
+        continue-on-error: true
+
+      - name: Install npm packages
+        run: yarn install --frozen-lockfile
+
+      - name: Testing
+        run: yarn test

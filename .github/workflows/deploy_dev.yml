@@ -1,0 +1,100 @@
+name: Deploy to development environment
+on:
+  push:
+    branches: ['develop']
+
+env:
+  image_name: ${{ secrets.AWS_ECR_URL }}/${{ github.event.repository.name }} # Nom de l'image docker
+
+jobs:
+  build:
+    name: Build and push docker Image
+    runs-on: ubuntu-latest
+    env:
+      test_env: ${{ secrets.TEST_ENV }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Creating .env file
+        run: |
+          echo "${{ env.test_env }}" >> .env
+
+      - id: sha
+        run: |
+          echo "image_sha=${{ env.image_name }}:$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "image_ref=${{ env.image_name }}:develop" >> $GITHUB_OUTPUT
+
+      - name: Build Docker image
+        env:
+          image_sha: ${{ steps.sha.outputs.image_sha }}
+          image_ref: ${{ steps.sha.outputs.image_ref }}
+        run: |
+          docker build -t ${{ env.image_sha }} -t ${{ env.image_ref }} .
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-3
+
+      - name: Push Docker image to ECR
+        env:
+          image_sha: ${{ steps.sha.outputs.image_sha }}
+          image_ref: ${{ steps.sha.outputs.image_ref }}
+        run: |
+          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login \
+            --username AWS --password-stdin ${{ secrets.AWS_ECR_URL }}
+          docker push ${{ env.image_sha }}
+          docker push ${{ env.image_ref }}
+
+  unit-testing:
+    name: Running unit tests
+    runs-on: ubuntu-latest
+    needs:
+      - build
+    steps:
+      # Complete this job
+      - name: Ensure app is okay by running tests
+        run: |
+          echo "Run tests here"
+          exit 0
+
+  deploy:
+    name: Deploy to dev
+    runs-on: ubuntu-latest
+    needs:
+      - unit-testing
+      - build
+    steps:
+      # Complete this job
+      - name: Deploy to the cluster
+        run: |
+          echo "Write deploy commands here"
+          exit 0
+
+  e2e-testing:
+    name: Running E2E testing
+    runs-on: ubuntu-latest
+    needs:
+      - deploy
+    steps:
+      # Complete this job
+      - name: Ensure app is okay by running tests
+        run: |
+          echo "Run tests here"
+          exit 0
+
+  rollback:
+    name: Rollback
+    runs-on: ubuntu-latest
+    needs:
+      - e2e-testing
+    if: failure()
+    steps:
+      # Complete this job
+      - name: Rollback if test fails
+        run: |
+          echo "Run rollback commands here"
+          exit 0
